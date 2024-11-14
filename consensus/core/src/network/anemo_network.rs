@@ -440,7 +440,7 @@ impl<S: NetworkService> ConsensusRpc for AnemoServiceProxy<S> {
                 "peer not found",
             )
         })?;
-        let highest_received = self
+        let (highest_received, highest_accepted) = self
             .service
             .handle_get_latest_rounds(index)
             .await
@@ -450,7 +450,10 @@ impl<S: NetworkService> ConsensusRpc for AnemoServiceProxy<S> {
                     format!("{e}"),
                 )
             })?;
-        Ok(Response::new(GetLatestRoundsResponse { highest_received }))
+        Ok(Response::new(GetLatestRoundsResponse {
+            highest_received,
+            highest_accepted,
+        }))
     }
 }
 
@@ -785,4 +788,6 @@ pub(crate) struct GetLatestRoundsRequest {}
 pub(crate) struct GetLatestRoundsResponse {
     // Highest received round per authority.
     highest_received: Vec<u32>,
+    // Highest accepted round per authority.
+    highest_accepted: Vec<u32>,
 }

@@ -409,10 +409,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         Ok(result)
     }
 
-    async fn handle_get_latest_rounds(&self, _peer: AuthorityIndex) -> ConsensusResult<Vec<Round>> {
+    async fn handle_get_latest_rounds(
+        &self,
+        _peer: AuthorityIndex,
+    ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
         fail_point_async!("consensus-rpc-response");
 
         let mut highest_received_rounds = self.core_dispatcher.highest_received_rounds();
+        let highest_accepted_rounds = self.core_dispatcher.highest_accepted_rounds();
         // Own blocks do not go through the core dispatcher, so they need to be set separately.
         highest_received_rounds[self.context.own_index] = self
             .dag_state
@@ -420,7 +424,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .get_last_block_for_authority(self.context.own_index)
             .round();
 
-        Ok(highest_received_rounds)
+        Ok((highest_received_rounds, highest_accepted_rounds))
     }
 }
 
@@ -679,6 +683,10 @@ mod tests {
         }
 
         fn highest_received_rounds(&self) -> Vec<Round> {
+            todo!()
+        }
+
+        fn highest_accepted_rounds(&self) -> Vec<Round> {
             todo!()
         }
     }

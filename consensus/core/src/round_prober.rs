@@ -150,6 +150,12 @@ impl<C: NetworkClient> RoundProber<C> {
             vec![vec![0; self.context.committee.size()]; self.context.committee.size()];
         highest_received_rounds[own_index] = self.core_thread_dispatcher.highest_received_rounds();
         highest_received_rounds[own_index][own_index] = last_proposed_round;
+
+        let mut highest_accepted_rounds =
+            vec![vec![0; self.context.committee.size()]; self.context.committee.size()];
+        highest_accepted_rounds[own_index] = self.core_thread_dispatcher.highest_accepted_rounds();
+        highest_accepted_rounds[own_index][own_index] = last_proposed_round;
+
         loop {
             tokio::select! {
                 result = requests.next() => {
@@ -313,14 +319,16 @@ mod test {
 
     struct FakeThreadDispatcher {
         highest_received_rounds: Vec<Round>,
+        highest_accepted_rounds: Vec<Round>,
         propagation_delay: Mutex<Round>,
         quorum_rounds: Mutex<Vec<QuorumRound>>,
     }
 
     impl FakeThreadDispatcher {
-        fn new(highest_received_rounds: Vec<Round>) -> Self {
+        fn new(highest_received_rounds: Vec<Round>, highest_accepted_rounds: Vec<Round>) -> Self {
             Self {
                 highest_received_rounds,
+                highest_accepted_rounds,
                 propagation_delay: Mutex::new(0),
                 quorum_rounds: Mutex::new(Vec::new()),
             }
@@ -375,16 +383,25 @@ mod test {
         fn highest_received_rounds(&self) -> Vec<Round> {
             self.highest_received_rounds.clone()
         }
+
+        fn highest_accepted_rounds(&self) -> Vec<Round> {
+            self.highest_accepted_rounds.clone()
+        }
     }
 
     struct FakeNetworkClient {
         highest_received_rounds: Vec<Vec<Round>>,
+        highest_accepted_rounds: Vec<Vec<Round>>,
     }
 
     impl FakeNetworkClient {
-        fn new(highest_received_rounds: Vec<Vec<Round>>) -> Self {
+        fn new(
+            highest_received_rounds: Vec<Vec<Round>>,
+            highest_accepted_rounds: Vec<Vec<Round>>,
+        ) -> Self {
             Self {
                 highest_received_rounds,
+                highest_accepted_rounds,
             }
         }
     }
@@ -458,21 +475,33 @@ mod test {
     async fn test_round_prober() {
         const NUM_AUTHORITIES: usize = 7;
         let context = Arc::new(Context::new_for_test(NUM_AUTHORITIES).0);
-        let core_thread_dispatcher = Arc::new(FakeThreadDispatcher::new(vec![
-            110, 120, 130, 140, 150, 160, 170,
-        ]));
+        let core_thread_dispatcher = Arc::new(FakeThreadDispatcher::new(
+            vec![110, 120, 130, 140, 150, 160, 170],
+            vec![110, 120, 130, 140, 150, 160, 170],
+        ));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         // Have some peers return error or incorrect number of rounds.
-        let network_client = Arc::new(FakeNetworkClient::new(vec![
-            vec![],
-            vec![109, 121, 131, 0, 151, 161, 171],
-            vec![101, 0, 103, 104, 105, 166, 107],
-            vec![],
-            vec![100, 102, 133, 0, 155, 106, 177],
-            vec![105, 115, 103, 0, 125, 126, 127],
-            vec![10, 20, 30, 40, 50, 60],
-        ]));
+        let network_client = Arc::new(FakeNetworkClient::new(
+            vec![
+                vec![],
+                vec![109, 121, 131, 0, 151, 161, 171],
+                vec![101, 0, 103, 104, 105, 166, 107],
+                vec![],
+                vec![100, 102, 133, 0, 155, 106, 177],
+                vec![105, 115, 103, 0, 125, 126, 127],
+                vec![10, 20, 30, 40, 50, 60],
+            ],
+            vec![
+                vec![],
+                vec![109, 121, 131, 0, 151, 161, 171],
+                vec![101, 0, 103, 104, 105, 166, 107],
+                vec![],
+                vec![100, 102, 133, 0, 155, 106, 177],
+                vec![105, 115, 103, 0, 125, 126, 127],
+                vec![10, 20, 30, 40, 50, 60],
+            ],
+        ));
         let prober = RoundProber::new(
             context.clone(),
             core_thread_dispatcher.clone(),

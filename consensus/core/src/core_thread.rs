@@ -78,6 +78,9 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     /// Returns the highest round received for each authority by Core.
     fn highest_received_rounds(&self) -> Vec<Round>;
+
+    /// Returns the highest round accepted for each authority by Core.
+    fn highest_accepted_rounds(&self) -> Vec<Round>;
 }
 
 pub(crate) struct CoreThreadHandle {
@@ -173,6 +176,7 @@ pub(crate) struct ChannelCoreThreadDispatcher {
     tx_propagation_delay_and_quorum_rounds: Arc<watch::Sender<(Round, Vec<QuorumRound>)>>,
     tx_last_known_proposed_round: Arc<watch::Sender<Round>>,
     highest_received_rounds: Arc<Vec<AtomicU32>>,
+    highest_accepted_rounds: Arc<Vec<AtomicU32>>,
 }
 
 impl ChannelCoreThreadDispatcher {
@@ -182,15 +186,24 @@ impl ChannelCoreThreadDispatcher {
         core: Core,
     ) -> (Self, CoreThreadHandle) {
         // Initialize highest received rounds to last accepted rounds.
-        let highest_received_rounds = {
+        let (highest_received_rounds, highest_accepted_rounds) = {
             let dag_state = dag_state.read();
-            context
+            let highest_received_rounds = context
                 .committee
                 .authorities()
                 .map(|(index, _)| {
                     AtomicU32::new(dag_state.get_last_block_for_authority(index).round())
                 })
-                .collect()
+                .collect();
+
+            let blocks = dag_state.get_last_cached_block_per_authority(Round::MAX);
+
+            let highest_accepted_rounds = blocks
+                .into_iter()
+                .map(|block| AtomicU32::new(block.round()))
+                .collect::<Vec<_>>();
+
+            (highest_received_rounds, highest_accepted_rounds)
         };
 
         let (sender, receiver) =
@@ -233,6 +246,7 @@ impl ChannelCoreThreadDispatcher {
             ),
             tx_last_known_proposed_round: Arc::new(tx_last_known_proposed_round),
             highest_received_rounds: Arc::new(highest_received_rounds),
+            highest_accepted_rounds: Arc::new(highest_accepted_rounds),
         };
         let handle = CoreThreadHandle {
             join_handle,
@@ -306,6 +320,13 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
     fn highest_received_rounds(&self) -> Vec<Round> {
         self.highest_received_rounds
+            .iter()
+            .map(|round| round.load(Ordering::Relaxed))
+            .collect()
+    }
+
+    fn highest_accepted_rounds(&self) -> Vec<Round> {
+        self.highest_accepted_rounds
             .iter()
             .map(|round| round.load(Ordering::Relaxed))
             .collect()
@@ -384,6 +405,10 @@ impl CoreThreadDispatcher for MockCoreThreadDispatcher {
     }
 
     fn highest_received_rounds(&self) -> Vec<Round> {
+        todo!()
+    }
+
+    fn highest_accepted_rounds(&self) -> Vec<Round> {
         todo!()
     }
 }
