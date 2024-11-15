@@ -67,11 +67,13 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     fn set_subscriber_exists(&self, exists: bool) -> Result<(), CoreError>;
 
     /// Sets the estimated delay to propagate a block to a quorum of peers, in
-    /// number of rounds, and the quorum rounds for all authorities.
+    /// number of rounds, and the received & accepted quorum rounds for all
+    /// authorities.
     fn set_propagation_delay_and_quorum_rounds(
         &self,
         delay: Round,
-        quorum_rounds: Vec<QuorumRound>,
+        received_quorum_rounds: Vec<QuorumRound>,
+        accepted_quorum_rounds: Vec<QuorumRound>,
     ) -> Result<(), CoreError>;
 
     fn set_last_known_proposed_round(&self, round: Round) -> Result<(), CoreError>;
@@ -100,7 +102,8 @@ struct CoreThread {
     core: Core,
     receiver: Receiver<CoreThreadCommand>,
     rx_subscriber_exists: watch::Receiver<bool>,
-    rx_propagation_delay_and_quorum_rounds: watch::Receiver<(Round, Vec<QuorumRound>)>,
+    rx_propagation_delay_and_quorum_rounds:
+        watch::Receiver<(Round, Vec<QuorumRound>, Vec<QuorumRound>)>,
     rx_last_known_proposed_round: watch::Receiver<Round>,
     context: Arc<Context>,
 }
@@ -153,8 +156,8 @@ impl CoreThread {
                 _ = self.rx_propagation_delay_and_quorum_rounds.changed() => {
                     let _scope = monitored_scope("CoreThread::loop::set_propagation_delay_and_quorum_rounds");
                     let should_propose_before = self.core.should_propose();
-                    let (delay, quorum_rounds) = self.rx_propagation_delay_and_quorum_rounds.borrow().clone();
-                    self.core.set_propagation_delay_and_quorum_rounds(delay, quorum_rounds);
+                    let (delay, received_quorum_rounds, accepted_quorum_rounds) = self.rx_propagation_delay_and_quorum_rounds.borrow().clone();
+                    self.core.set_propagation_delay_and_quorum_rounds(delay, received_quorum_rounds, accepted_quorum_rounds);
                     if !should_propose_before && self.core.should_propose() {
                         // If core cannnot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.

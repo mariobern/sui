@@ -691,12 +691,13 @@ impl Core {
         self.subscriber_exists = exists;
     }
 
-    /// Sets the delay by round for propagating blocks to a quorum and the
-    /// quorum round per authority for ancestor state manager.
+    /// Sets the delay by round for propagating blocks to a quorum and the received
+    /// & accepted quorum rounds per authority for ancestor state manager.
     pub(crate) fn set_propagation_delay_and_quorum_rounds(
         &mut self,
         delay: Round,
-        quorum_rounds: Vec<QuorumRound>,
+        received_quorum_rounds: Vec<QuorumRound>,
+        accepted_quorum_rounds: Vec<QuorumRound>,
     ) {
         info!("Quorum round per authority in ancestor state manager set to: {quorum_rounds:?}");
         self.ancestor_state_manager
