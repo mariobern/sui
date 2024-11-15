@@ -55,6 +55,8 @@ export function parseSerializedSignature(serializedSignature: string) {
 		SIGNATURE_FLAG_TO_SCHEME[bytes[0] as keyof typeof SIGNATURE_FLAG_TO_SCHEME];
 
 	switch (signatureScheme) {
+		// case 'Passkey':
+		// 	return parseSerializedPasskeySignature(serializedSignature);
 		case 'MultiSig':
 			const multisig: MultiSigStruct = bcs.MultiSig.parse(bytes.slice(1));
 			return {
